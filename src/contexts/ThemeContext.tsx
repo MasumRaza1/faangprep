@@ -19,7 +19,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [theme, setTheme] = useState<ThemeState>(() => {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme) {
-      return JSON.parse(savedTheme);
+      const parsedTheme = JSON.parse(savedTheme);
+      if (parsedTheme.mode === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+      return parsedTheme;
     }
     document.documentElement.classList.add('dark');
     return defaultTheme;

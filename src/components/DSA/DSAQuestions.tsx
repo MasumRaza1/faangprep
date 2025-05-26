@@ -46,6 +46,29 @@ interface StudyPlan {
 
 const DSAQuestions: React.FC = () => {
   const { theme } = useTheme();
+
+  // Get today's date in IST
+  const getTodayIST = () => {
+    const now = new Date();
+    // Convert to IST
+    const istDate = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+    return istDate.toISOString().split('T')[0];
+  };
+
+  // Enhanced date formatting with Indian time zone
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    // Convert to IST by adding 5 hours and 30 minutes
+    const istDate = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
+    return istDate.toLocaleDateString('en-IN', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata'
+    });
+  };
+
   const [expandedTopics, setExpandedTopics] = useState<{ [key: string]: boolean }>({});
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
   const [completedQuestions, setCompletedQuestions] = useState<Set<string>>(() => {
@@ -74,7 +97,7 @@ const DSAQuestions: React.FC = () => {
   const [studyPlan, setStudyPlan] = useState<StudyPlan | null>(null);
   const [startDate, setStartDate] = useState('');
   const [numberOfDays, setNumberOfDays] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getTodayIST());
   const [showCalendar, setShowCalendar] = useState(false);
 
   // Load saved data from localStorage on component mount
@@ -86,7 +109,7 @@ const DSAQuestions: React.FC = () => {
         if (savedStudyPlan) {
           const plan = JSON.parse(savedStudyPlan);
           setStudyPlan(plan);
-          setSelectedDate(new Date().toISOString().split('T')[0]);
+          setSelectedDate(getTodayIST());
         }
       } catch (error) {
         console.error('Error loading saved data:', error);
@@ -133,7 +156,7 @@ const DSAQuestions: React.FC = () => {
   };
 
   const toggleQuestionCompletion = (questionId: string) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayIST();
     
     setCompletedQuestions(prev => {
       const newSet = new Set(prev);
@@ -466,23 +489,12 @@ const DSAQuestions: React.FC = () => {
     return allQuestions;
   };
 
-  // Enhanced date formatting with day of week
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
-
   // Get section date range
   const getSectionDateRange = (section: Content) => {
     if (!studyPlan) return null;
 
-    let firstDate: Date | null = null;
-    let lastDate: Date | null = null;
+    let firstDate: Date | undefined;
+    let lastDate: Date | undefined;
 
     // Find all questions in this section
     const sectionQuestionIds = new Set<string>();
@@ -599,7 +611,7 @@ const DSAQuestions: React.FC = () => {
 
   const getRemainingDays = () => {
     if (!studyPlan?.startDate) return 0;
-    const today = new Date();
+    const today = new Date(getTodayIST());
     const endDate = new Date(studyPlan.startDate);
     endDate.setDate(endDate.getDate() + studyPlan.numberOfDays - 1);
     const diffTime = endDate.getTime() - today.getTime();
@@ -688,13 +700,13 @@ const DSAQuestions: React.FC = () => {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
                 className={`w-full px-3 py-2 rounded border ${
                   theme.mode === 'dark' 
                     ? 'bg-gray-700 border-gray-600' 
                     : 'bg-white border-gray-300'
                 }`}
               />
+              <p className="text-sm text-gray-500 mt-1">You can choose any date, including past dates</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Number of Days</label>
@@ -851,7 +863,7 @@ const DSAQuestions: React.FC = () => {
       localStorage.removeItem('revisionQuestions');
 
       // Reset selected date to today
-      setSelectedDate(new Date().toISOString().split('T')[0]);
+      setSelectedDate(getTodayIST());
     }
   };
 
@@ -1079,45 +1091,39 @@ const DSAQuestions: React.FC = () => {
                 </div>
               </div>
 
+              {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                {/* Start Date Card */}
                 <div className={`p-4 rounded-lg ${
                   theme.mode === 'dark' ? 'bg-gray-700/50' : 'bg-gray-50'
                 } relative overflow-hidden group hover:shadow-md transition-shadow`}>
                   <div className="relative z-10">
                     <p className="text-sm text-gray-500 mb-1">Start Date</p>
                     <p className="text-lg font-medium">
-                      {new Date(studyPlan.startDate).toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric'
-                      })}
+                      {formatDate(studyPlan.startDate)}
                     </p>
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"/>
                 </div>
 
+                {/* End Date Card */}
                 <div className={`p-4 rounded-lg ${
                   theme.mode === 'dark' ? 'bg-gray-700/50' : 'bg-gray-50'
                 } relative overflow-hidden group hover:shadow-md transition-shadow`}>
                   <div className="relative z-10">
                     <p className="text-sm text-gray-500 mb-1">End Date</p>
                     <p className="text-lg font-medium">
-                      {getEndDate() ? new Date(getEndDate()!).toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric'
-                      }) : '-'}
+                      {getEndDate() ? formatDate(getEndDate()!) : '-'}
                     </p>
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"/>
                 </div>
 
+                {/* Streak Card */}
                 <div className={`p-4 rounded-lg ${
                   theme.mode === 'dark' ? 'bg-gray-700/50' : 'bg-gray-50'
                 } relative overflow-hidden group hover:shadow-md transition-shadow`}>
-                                      <div className="relative z-10">
+                  <div className="relative z-10">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm text-gray-500">Streak</p>
                       <div className="flex items-center gap-1 bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded-full">
@@ -1164,6 +1170,7 @@ const DSAQuestions: React.FC = () => {
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"/>
                 </div>
 
+                {/* Today's Progress Card */}
                 <div className={`p-4 rounded-lg ${
                   theme.mode === 'dark' ? 'bg-gray-700/50' : 'bg-gray-50'
                 } relative overflow-hidden group hover:shadow-md transition-shadow`}>
@@ -1172,7 +1179,7 @@ const DSAQuestions: React.FC = () => {
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-baseline gap-2">
                         <p className="text-2xl font-bold text-green-500">
-                          {selectedDateQuestions.filter(id => completedQuestions.has(id)).length}
+                          {getQuestionsForDate(getTodayIST()).filter(id => completedQuestions.has(id)).length}
                         </p>
                         <p className="text-sm text-gray-500">completed</p>
                       </div>
@@ -1211,139 +1218,134 @@ const DSAQuestions: React.FC = () => {
                   <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"/>
                 </div>
               </div>
-            </div>
 
-            {/* Today's Questions Section */}
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h4 className="text-xl font-semibold flex items-center gap-2">
-                  <Calendar size={20} className="text-blue-500" />
-                  <span>
-                    {new Date(selectedDate).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric'
-                    })}
-                  </span>
-                </h4>
-                <div className="flex items-center gap-2">
-                  <div className={`px-4 py-2 rounded-lg ${
-                    theme.mode === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl font-bold text-green-500">
-                        {selectedDateQuestions.filter(id => completedQuestions.has(id)).length}
-                      </span>
-                      <span className="text-gray-500">/</span>
-                      <span className="text-lg font-medium">{selectedDateQuestions.length}</span>
-                      <span className="text-sm text-gray-500 ml-2">completed</span>
-                    </div>
-                    <div className="mt-2 h-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-green-500 rounded-full transition-all duration-300" 
-                        style={{ 
-                          width: `${(selectedDateQuestions.filter(id => completedQuestions.has(id)).length / 
-                            selectedDateQuestions.length) * 100}%` 
-                        }}
-                      />
+              {/* Today's Questions Section */}
+              <div className="mt-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-xl font-semibold flex items-center gap-2">
+                    <Calendar size={20} className="text-blue-500" />
+                    <span>Today's Questions ({formatDate(getTodayIST())})</span>
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <div className={`px-4 py-2 rounded-lg ${
+                      theme.mode === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl font-bold text-green-500">
+                          {getQuestionsForDate(getTodayIST()).filter(id => completedQuestions.has(id)).length}
+                        </span>
+                        <span className="text-gray-500">/</span>
+                        <span className="text-lg font-medium">{getQuestionsForDate(getTodayIST()).length}</span>
+                        <span className="text-sm text-gray-500 ml-2">completed</span>
+                      </div>
+                      <div className="mt-2 h-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-green-500 rounded-full transition-all duration-300" 
+                          style={{ 
+                            width: `${(getQuestionsForDate(getTodayIST()).filter(id => completedQuestions.has(id)).length / 
+                              getQuestionsForDate(getTodayIST()).length) * 100}%` 
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="space-y-4">
-                {selectedDateQuestions.map(questionId => {
-                  const question = getAllQuestions().find(q => q.questionId === questionId);
-                  if (!question) return null;
+                {/* Questions List */}
+                <div className="space-y-4">
+                  {getQuestionsForDate(getTodayIST()).length > 0 ? (
+                    getQuestionsForDate(getTodayIST()).map(questionId => {
+                      const question = getAllQuestions().find(q => q.questionId === questionId);
+                      if (!question) return null;
 
-                  const isCompleted = completedQuestions.has(questionId);
-                  const isInRevision = revisionQuestions.has(questionId);
-                  const difficulty = getDifficulty(question);
-                  const difficultyColors = {
-                    Easy: 'text-green-500',
-                    Medium: 'text-yellow-500',
-                    Hard: 'text-red-500'
-                  };
+                      const isCompleted = completedQuestions.has(questionId);
+                      const isInRevision = revisionQuestions.has(questionId);
+                      const difficulty = getDifficulty(question);
 
-                  return (
-                    <div
-                      key={questionId}
-                      className={`p-4 rounded-lg transition-all duration-200 ${
-                        theme.mode === 'dark' 
-                          ? isCompleted ? 'bg-gray-700/50' : 'bg-gray-700/30' 
-                          : isCompleted ? 'bg-gray-50' : 'bg-white'
-                      } ${isCompleted ? 'border-l-4 border-green-500' : 'hover:shadow-md'}`}
-                    >
-                      <div className="space-y-3">
-                        <div className="flex items-start gap-3">
-                          <button
-                            onClick={() => toggleQuestionCompletion(questionId)}
-                            className={`flex-shrink-0 w-6 h-6 rounded border-2 ${
-                              isCompleted
-                                ? 'bg-green-500 border-green-500'
-                                : theme.mode === 'dark'
-                                ? 'border-gray-600'
-                                : 'border-gray-300'
-                            } flex items-center justify-center hover:border-green-500`}
-                          >
-                            {isCompleted && (
-                              <Check size={16} className="text-white" />
-                            )}
-                          </button>
-                          <div className="flex-grow">
-                            <div className="flex items-start justify-between gap-4">
-                              <div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className={`font-medium text-lg ${isCompleted ? 'line-through text-gray-500' : ''}`}>
+                      return (
+                        <div
+                          key={questionId}
+                          className={`p-4 rounded-lg transition-all duration-200 ${
+                            theme.mode === 'dark' 
+                              ? isCompleted ? 'bg-gray-700/50' : 'bg-gray-700/30' 
+                              : isCompleted ? 'bg-gray-50' : 'bg-white'
+                          } border ${
+                            isCompleted 
+                              ? 'border-green-500/30' 
+                              : theme.mode === 'dark' 
+                                ? 'border-gray-700' 
+                                : 'border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-start gap-4">
+                            <button
+                              onClick={() => toggleQuestionCompletion(questionId)}
+                              className={`flex-shrink-0 w-6 h-6 rounded-md border-2 transition-colors ${
+                                isCompleted
+                                  ? 'bg-green-500 border-green-500'
+                                  : theme.mode === 'dark'
+                                  ? 'border-gray-600'
+                                  : 'border-gray-300'
+                              } flex items-center justify-center hover:border-green-500`}
+                            >
+                              {isCompleted && <Check size={16} className="text-white" />}
+                            </button>
+                            <div className="flex-grow">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <h4 className={`font-medium ${isCompleted ? 'line-through text-gray-500' : ''}`}>
                                     {question.questionHeading}
-                                  </span>
-                                  <span className={`px-2 py-0.5 rounded-full text-sm font-medium ${
-                                    difficulty === 'Easy' 
-                                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                      : difficulty === 'Medium'
-                                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                  }`}>
-                                    {difficulty}
-                                  </span>
+                                  </h4>
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      difficulty === 'Easy' 
+                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                        : difficulty === 'Medium'
+                                        ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                    }`}>
+                                      {difficulty}
+                                    </span>
+                                    {renderQuestionLinks(question)}
+                                  </div>
                                 </div>
-                                <div className="mt-2 flex items-center gap-4">
-                                  {renderQuestionLinks(question)}
-                                </div>
+                                <button
+                                  onClick={() => toggleRevision(questionId)}
+                                  className={`p-2 rounded-lg transition-colors ${
+                                    isInRevision 
+                                      ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                                      : theme.mode === 'dark'
+                                      ? 'hover:bg-gray-600'
+                                      : 'hover:bg-gray-100'
+                                  }`}
+                                  title={isInRevision ? "Remove from revision" : "Add to revision"}
+                                >
+                                  {isInRevision ? (
+                                    <BookmarkCheck size={20} />
+                                  ) : (
+                                    <BookmarkPlus size={20} className="text-gray-400" />
+                                  )}
+                                </button>
                               </div>
-                              <button
-                                onClick={() => toggleRevision(questionId)}
-                                className={`p-2 rounded-lg transition-colors ${
-                                  isInRevision 
-                                    ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                                    : theme.mode === 'dark'
-                                    ? 'hover:bg-gray-600'
-                                    : 'hover:bg-gray-100'
-                                }`}
-                                title={isInRevision ? "Remove from revision" : "Add to revision"}
-                              >
-                                {isInRevision ? (
-                                  <BookmarkCheck size={20} />
-                                ) : (
-                                  <BookmarkPlus size={20} className="text-gray-400" />
-                                )}
-                              </button>
                             </div>
                           </div>
                         </div>
-                      </div>
+                      );
+                    })
+                  ) : (
+                    <div className={`p-6 rounded-lg text-center ${
+                      theme.mode === 'dark' ? 'bg-gray-700/30' : 'bg-gray-50'
+                    }`}>
+                      <p className="text-gray-500">No questions scheduled for today</p>
+                      <button
+                        onClick={() => setShowStudyPlanModal(true)}
+                        className="mt-4 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                      >
+                        Create Study Plan
+                      </button>
                     </div>
-                  );
-                })}
-
-                {selectedDateQuestions.length === 0 && (
-                  <div className={`p-8 rounded-lg text-center ${
-                    theme.mode === 'dark' ? 'bg-gray-700/30' : 'bg-gray-50'
-                  }`}>
-                    <p className="text-gray-500">No questions scheduled for this date</p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           </div>

@@ -18,7 +18,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
   };
 
   return (
-    <div className={`min-h-screen ${theme.mode === 'dark' ? 'dark bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`min-h-screen ${
+      theme.mode === 'dark' 
+        ? 'dark bg-gray-900 text-gray-100' 
+        : 'bg-gray-50 text-gray-900'
+    } transition-colors duration-200`}>
       <Header toggleSidebar={toggleSidebar} />
       <div className="flex min-h-[calc(100vh-4rem)]">
         <Sidebar 
