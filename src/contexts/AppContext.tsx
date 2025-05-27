@@ -24,15 +24,33 @@ type AppAction =
   | { type: 'RESET_SUBJECT'; subjectId: string }
   | { type: 'SET_STATE'; state: AppState };
 
-// Default state
+// Update the default schedule
 const defaultSchedule: Schedule = {
   startDate: new Date(),
-  totalDays: 0, // Changed from 30 to 0 days default
-  endDate: new Date(), // Set to same as start date since totalDays is 0
+  totalDays: 30, // Set back to 30 days as default
+  endDate: new Date(new Date().getTime() + (30 * 24 * 60 * 60 * 1000))
 };
 
+// Update the defaultState
 const defaultState: AppState = {
-  subjects: defaultSubjects,
+  subjects: defaultSubjects.map(subject => ({
+    ...subject,
+    schedule: {
+      startDate: new Date(),
+      totalDays: 30,
+      endDate: new Date(new Date().getTime() + (30 * 24 * 60 * 60 * 1000))
+    },
+    topics: subject.topics.map(topic => ({
+      ...topic,
+      completed: false,
+      scheduledDate: null,
+      subtopics: topic.subtopics.map(subtopic => ({
+        ...subtopic,
+        completed: false,
+        scheduledDate: null
+      }))
+    }))
+  })),
   schedule: defaultSchedule,
   lastUpdated: new Date(),
 };

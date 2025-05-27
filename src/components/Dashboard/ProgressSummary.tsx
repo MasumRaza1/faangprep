@@ -79,7 +79,7 @@ const ProgressSummary: React.FC = () => {
   const dsaDays = getStudyPlanDays();
 
   // Calculate total and remaining days
-  const totalDays = subjectDays.totalDays + dsaDays.totalDays;
+  const totalDays = Math.max(subjectDays.totalDays, dsaDays.totalDays);
   const today = new Date();
   const startDate = new Date(Math.min(
     new Date(JSON.parse(localStorage.getItem('studyPlan') || '{"startDate": ""}').startDate || today).getTime(),

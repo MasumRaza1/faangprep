@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Home, BookOpen, Calendar, Code2, Briefcase } from 'lucide-react';
+import { Home, BookOpen, Calendar, Code2, User } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ultimateData from '../../data/ultimateData';
 
@@ -75,7 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, closeSidebar, activeTab, setA
   };
 
   // Calculate total and remaining days
-  const totalDays = subjectDays.totalDays + dsaDays.totalDays;
+  const totalDays = Math.max(subjectDays.totalDays, dsaDays.totalDays);
   const today = new Date();
   const startDate = new Date(Math.min(
     new Date(JSON.parse(localStorage.getItem('studyPlan') || '{"startDate": ""}').startDate || today).getTime(),
@@ -106,7 +106,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, closeSidebar, activeTab, setA
     {
       id: 'profiles' as const,
       label: 'Coding Profiles',
-      icon: <Code2 size={20} className="flex-shrink-0" />,
+      icon: <User size={20} className="flex-shrink-0" />,
       path: '/profiles'
     },
     {
