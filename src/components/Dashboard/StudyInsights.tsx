@@ -1,13 +1,14 @@
 import React from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { TrendingUp, Clock, Calendar, Target, Award } from 'lucide-react';
+import { TrendingUp, Clock, Calendar, Target, Award, Code } from 'lucide-react';
+import ultimateData from '../../data/ultimateData';
 
 const StudyInsights: React.FC = () => {
   const { state } = useApp();
   const { theme } = useTheme();
 
-  // Calculate statistics
+  // Calculate statistics including DSA
   const calculateStats = () => {
     let totalSubtopics = 0;
     let completedSubtopics = 0;
@@ -20,6 +21,7 @@ const StudyInsights: React.FC = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Calculate subject stats
     state.subjects.forEach(subject => {
       subject.topics.forEach(topic => {
         totalSubtopics += topic.subtopics.length;
@@ -30,22 +32,47 @@ const StudyInsights: React.FC = () => {
       }
     });
 
-    // Calculate completion rate
-    const completionRate = totalSubtopics > 0 
-      ? Math.round((completedSubtopics / totalSubtopics) * 100) 
+    // Calculate DSA stats
+    const studyPlan = localStorage.getItem('studyPlan');
+    const completedQuestions = new Set(JSON.parse(localStorage.getItem('completedQuestions') || '[]'));
+    
+    let totalDSAQuestions = 0;
+    let completedDSAQuestions = completedQuestions.size;
+    let dsaStudyDays = 0;
+
+    if (studyPlan) {
+      const plan = JSON.parse(studyPlan);
+      dsaStudyDays = plan.numberOfDays || 0;
+
+      // Count total DSA questions
+      ultimateData.data.content.forEach(section => {
+        section.categoryList.forEach(category => {
+          totalDSAQuestions += category.questionList.length;
+        });
+      });
+    }
+
+    // Calculate combined completion rate
+    const totalItems = totalSubtopics + totalDSAQuestions;
+    const completedItems = completedSubtopics + completedDSAQuestions;
+    const completionRate = totalItems > 0 
+      ? Math.round((completedItems / totalItems) * 100) 
       : 0;
 
-    // Calculate average daily workload
-    const avgDailySubtopics = totalStudyDays > 0 
-      ? Math.round((totalSubtopics / totalStudyDays) * 10) / 10 
+    // Calculate combined daily workload
+    const totalDays = Math.max(totalStudyDays, dsaStudyDays);
+    const avgDailyItems = totalDays > 0 
+      ? Math.round(((totalItems) / totalDays) * 10) / 10 
       : 0;
 
     return {
       totalSubtopics,
       completedSubtopics,
+      totalDSAQuestions,
+      completedDSAQuestions,
       completionRate,
-      totalStudyDays,
-      avgDailySubtopics,
+      totalStudyDays: totalDays,
+      avgDailyItems,
       currentStreak,
       longestStreak
     };
@@ -56,9 +83,9 @@ const StudyInsights: React.FC = () => {
   const insights = [
     {
       icon: <Target className="w-5 h-5" />,
-      label: 'Completion Rate',
+      label: 'Overall Progress',
       value: `${stats.completionRate}%`,
-      description: `${stats.completedSubtopics} of ${stats.totalSubtopics} subtopics`
+      description: `${stats.completedSubtopics + stats.completedDSAQuestions} of ${stats.totalSubtopics + stats.totalDSAQuestions} items`
     },
     {
       icon: <Calendar className="w-5 h-5" />,
@@ -68,15 +95,15 @@ const StudyInsights: React.FC = () => {
     },
     {
       icon: <Clock className="w-5 h-5" />,
-      label: 'Daily Average',
-      value: `${stats.avgDailySubtopics}`,
-      description: 'Subtopics per day'
+      label: 'Daily Target',
+      value: `${stats.avgDailyItems}`,
+      description: 'Items per day'
     },
     {
-      icon: <TrendingUp className="w-5 h-5" />,
-      label: 'Progress Trend',
-      value: stats.completionRate > 50 ? 'On Track' : 'Needs Focus',
-      description: `${100 - stats.completionRate}% remaining`
+      icon: <Code className="w-5 h-5" />,
+      label: 'DSA Progress',
+      value: `${Math.round((stats.completedDSAQuestions / stats.totalDSAQuestions) * 100)}%`,
+      description: `${stats.completedDSAQuestions} of ${stats.totalDSAQuestions} questions`
     }
   ];
 

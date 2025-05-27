@@ -15,7 +15,10 @@ import {
   Flame,
   GitFork,
   Clock,
-  LineChart
+  LineChart,
+  Rocket,
+  ChevronDown,
+  Building2
 } from 'lucide-react';
 import { Tab } from '@headlessui/react';
 import RtCampEligibility from './RtCampEligibility';
@@ -44,6 +47,20 @@ ChartJS.register(
   LineElement,
   Title
 );
+
+// Add box-sizing at the top of the file after imports
+const styles = `
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  @media (max-width: 640px) {
+    .container {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+  }
+`;
 
 interface LeetCodeStats {
   totalSolved: number;
@@ -600,6 +617,8 @@ const CodingProfiles: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [showTokenInput, setShowTokenInput] = useState(false);
+  const [showFaangEligibility, setShowFaangEligibility] = useState(false);
+  const [showRtCampEligibility, setShowRtCampEligibility] = useState(false);
 
   const fetchLeetCodeStats = async (username: string): Promise<LeetCodeStats | null> => {
     try {
@@ -841,7 +860,8 @@ const CodingProfiles: React.FC = () => {
       });
 
       if (!graphqlResponse.ok) {
-        throw new Error('Failed to fetch GitHub data');
+        throw new Error('Failed to fetch GitHub data. Either the request failed or your GitHub token ID is missing.');
+
       }
 
       const data = await graphqlResponse.json();
@@ -967,8 +987,8 @@ const CodingProfiles: React.FC = () => {
               <div>
                 <h3 className="text-xl font-semibold">LeetCode Profile</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Your coding journey statistics</p>
-          </div>
-          </div>
+              </div>
+            </div>
             <div className="flex items-center gap-4">
               <div className="text-center">
                 <div className="text-3xl font-bold text-blue-500">{stats.ranking}</div>
@@ -978,8 +998,8 @@ const CodingProfiles: React.FC = () => {
                 <div className="text-3xl font-bold text-green-500">{stats.acceptanceRate}%</div>
                 <div className="text-sm text-gray-500">Acceptance Rate</div>
               </div>
+            </div>
           </div>
-        </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-4">
@@ -987,16 +1007,16 @@ const CodingProfiles: React.FC = () => {
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Total Solved</p>
                   <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.totalSolved}</p>
-              </div>
+                </div>
                 <Hash className="w-8 h-8 text-blue-500 opacity-70" />
-            </div>
               </div>
+            </div>
             <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Easy</p>
                   <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.easySolved}</p>
-            </div>
+                </div>
                 <CheckCircle2 className="w-8 h-8 text-green-500 opacity-70" />
               </div>
             </div>
@@ -1065,58 +1085,60 @@ const CodingProfiles: React.FC = () => {
                   ) : (
                     <div className="text-sm text-gray-500">No active streak</div>
                   )}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-            <h4 className="text-sm font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
-              Problem Distribution
-            </h4>
-            {stats.totalSolved > 0 ? (
-              <>
-                <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden flex">
-                  <div 
-                    className="bg-green-500 h-full"
-                    style={{ width: `${(stats.easySolved / stats.totalSolved) * 100}%` }}
-                  />
-                  <div 
-                    className="bg-yellow-500 h-full"
-                    style={{ width: `${(stats.mediumSolved / stats.totalSolved) * 100}%` }}
-                  />
-                  <div 
-                    className="bg-red-500 h-full"
-                    style={{ width: `${(stats.hardSolved / stats.totalSolved) * 100}%` }}
-                    />
-                  </div>
-                <div className="flex justify-between mt-2 text-xs text-gray-500">
-                  <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 bg-green-500 rounded-full" />
-                    Easy ({Math.round((stats.easySolved / stats.totalSolved) * 100)}%)
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-                    Medium ({Math.round((stats.mediumSolved / stats.totalSolved) * 100)}%)
+        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+          <h4 className="text-sm font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+            Problem Distribution
+          </h4>
+          {stats.totalSolved > 0 ? (
+            <>
+              <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden flex">
+                <div 
+                  className="bg-green-500 h-full"
+                  style={{ width: `${(stats.easySolved / stats.totalSolved) * 100}%` }}
+                />
+                <div 
+                  className="bg-yellow-500 h-full"
+                  style={{ width: `${(stats.mediumSolved / stats.totalSolved) * 100}%` }}
+                />
+                <div 
+                  className="bg-red-500 h-full"
+                  style={{ width: `${(stats.hardSolved / stats.totalSolved) * 100}%` }}
+                />
+              </div>
+              <div className="flex justify-between mt-2 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-green-500 rounded-full" />
+                  Easy ({Math.round((stats.easySolved / stats.totalSolved) * 100)}%)
                 </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 bg-red-500 rounded-full" />
-                    Hard ({Math.round((stats.hardSolved / stats.totalSolved) * 100)}%)
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full" />
+                  Medium ({Math.round((stats.mediumSolved / stats.totalSolved) * 100)}%)
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-red-500 rounded-full" />
+                  Hard ({Math.round((stats.hardSolved / stats.totalSolved) * 100)}%)
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="text-sm text-gray-500 text-center py-4">
+              No problems solved yet
             </div>
-                </div>
-              </>
-            ) : (
-              <div className="text-sm text-gray-500 text-center py-4">
-                No problems solved yet
-          </div>
-        )}
-          </div>
+          )}
         </div>
       </div>
     );
   };
 
-  const GitHubDetailedStats: React.FC<{ stats: GitHubStats }> = ({ stats }) => {
+  const GitHubDetailedStats: React.FC<{ stats: GitHubStats | null }> = ({ stats }) => {
+    if (!stats) return null;
+    
     return (
       <div className="space-y-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
@@ -1124,32 +1146,35 @@ const CodingProfiles: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
                 <Github className="w-8 h-8 text-gray-700 dark:text-gray-300" />
-            </div>
+              </div>
               <div>
                 <h3 className="text-xl font-semibold">GitHub Profile</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Open Source Contributions & Activity</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Open Source Activity</p>
+              </div>
             </div>
           </div>
-            </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-600/50 rounded-lg p-4">
+          {/* GitHub Stats Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Repositories</p>
-                  <p className="text-2xl font-bold text-gray-700 dark:text-gray-300">{stats.repositories}</p>
-            </div>
-                <Box className="w-8 h-8 text-gray-500 opacity-70" />
-          </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Total Contributions</p>
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    {stats.totalContributions}
+                  </p>
+                </div>
+                <GitFork className="w-8 h-8 text-green-500 opacity-70" />
+              </div>
             </div>
             <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Stars</p>
                   <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.stars}</p>
-            </div>
+                </div>
                 <Star className="w-8 h-8 text-yellow-500 opacity-70" />
-          </div>
+              </div>
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-4">
               <div className="flex items-center justify-between">
@@ -1167,9 +1192,9 @@ const CodingProfiles: React.FC = () => {
                   <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.followers}</p>
                 </div>
                 <Users className="w-8 h-8 text-purple-500 opacity-70" />
+              </div>
             </div>
           </div>
-        </div>
 
           {/* Language Statistics */}
           <div className="bg-white dark:bg-gray-800 rounded-lg">
@@ -1179,126 +1204,8 @@ const CodingProfiles: React.FC = () => {
                 <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Most Used Languages</h4>
               </div>
               <span className="text-xs text-gray-400">Top 6</span>
-              </div>
+            </div>
             <LanguageStats languages={stats.topLanguages} />
-              </div>
-
-          {/* Open Source Impact Section */}
-          <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-6">
-            <h4 className="text-sm font-medium uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-6 flex items-center gap-2">
-              <GitFork className="w-4 h-4 text-green-600" />
-              Open Source Impact
-            </h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-green-100 dark:border-green-800/30">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 rounded-md bg-green-100 dark:bg-green-900/30">
-                    <GitPullRequest className="w-4 h-4 text-green-600" />
-            </div>
-                  <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Total PRs</p>
-                    <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                      {stats.pullRequests.opened}
-                    </p>
-          </div>
-              </div>
-                <div className="text-xs text-gray-500">
-                  {stats.pullRequests.merged} merged
-              </div>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-green-100 dark:border-green-800/30">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 rounded-md bg-green-100 dark:bg-green-900/30">
-                    <GitFork className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Contributions</p>
-                    <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                      {stats.totalContributions}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-xs text-gray-500">
-                  Last year
-                </div>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-green-100 dark:border-green-800/30">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 rounded-md bg-green-100 dark:bg-green-900/30">
-                    <Star className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Stars Earned</p>
-                    <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                      {stats.stars}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-xs text-gray-500">
-                  Across all repos
-                </div>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-green-100 dark:border-green-800/30">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 rounded-md bg-green-100 dark:bg-green-900/30">
-                    <Clock className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Streak</p>
-                    <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                      {stats.currentStreak} days
-                    </p>
-                  </div>
-                </div>
-                <div className="text-xs text-gray-500">
-                  Longest: {stats.longestStreak} days
-                </div>
-              </div>
-            </div>
-
-            {/* Popular Repositories */}
-            {stats.popularRepos.length > 0 && (
-              <div className="space-y-4">
-                <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Popular Repositories
-                </h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {stats.popularRepos.map(repo => (
-                    <div 
-                      key={repo.name}
-                      className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-green-100 dark:border-green-800/30"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h6 className="font-medium mb-1 flex items-center gap-2">
-                            <Box className="w-4 h-4 text-green-600" />
-                            {repo.name}
-                          </h6>
-                          <p className="text-sm text-gray-500 line-clamp-2">
-                            {repo.description || 'No description available'}
-                          </p>
-              </div>
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1">
-                            <Star className="w-4 h-4 text-yellow-500" />
-                            <span className="text-sm">{repo.stars}</span>
-            </div>
-                          <div className="flex items-center gap-1">
-                            <GitFork className="w-4 h-4 text-blue-500" />
-                            <span className="text-sm">{repo.forks}</span>
-                          </div>
-                        </div>
-                      </div>
-                      {repo.language && (
-                        <div className="mt-3 flex items-center gap-2">
-                          <span className="text-sm">{repo.language}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -1306,21 +1213,21 @@ const CodingProfiles: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 max-w-full">
+      <style>{styles}</style>
       <div className={`rounded-xl ${
         theme.mode === 'dark' ? 'bg-gray-800' : 'bg-white'
-      } shadow-md overflow-hidden p-6`}>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Coding Profiles</h2>
-          <div className="flex items-center gap-4">
+      } shadow-md overflow-hidden p-3 sm:p-6`}>
+        {/* Header Section - More Mobile Friendly */}
+        <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6">
+          <h2 className="text-lg sm:text-xl font-semibold">Coding Profiles</h2>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
             {(leetcodeStats || githubStats) && (
               <>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                <div className="flex flex-col w-full sm:flex-row sm:w-auto items-start sm:items-center gap-2">
+                  <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
                     Last updated: {formatLastUpdated(lastUpdated)}
                   </span>
-                </div>
-                <div className="flex items-center gap-2">
                   <label className="flex items-center cursor-pointer">
                     <input
                       type="checkbox"
@@ -1328,31 +1235,34 @@ const CodingProfiles: React.FC = () => {
                       onChange={(e) => setAutoRefresh(e.target.checked)}
                       className="form-checkbox h-4 w-4 text-blue-500 rounded border-gray-300 focus:ring-blue-500"
                     />
-                    <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">Auto-refresh</span>
+                    <span className="ml-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">Auto-refresh</span>
                   </label>
                 </div>
-                <button
-                  onClick={() => handleSubmit(createFormEvent())}
-                  disabled={loading}
-                  className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
-                >
-                  {loading ? 'Refreshing...' : 'Refresh'}
-                </button>
-                <button
-                  onClick={clearData}
-                  className="text-sm text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
-                >
-                  Clear Data
-                </button>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => handleSubmit(createFormEvent())}
+                    disabled={loading}
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
+                  >
+                    {loading ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                  <button
+                    onClick={clearData}
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+                  >
+                    Clear Data
+                  </button>
+                </div>
               </>
             )}
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">
+        {/* Form Section - More Compact on Mobile */}
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="space-y-1 sm:space-y-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">
                 GitHub Username
               </label>
               <div className="flex">
@@ -1360,17 +1270,17 @@ const CodingProfiles: React.FC = () => {
                   type="text"
                   value={githubUsername}
                   onChange={(e) => setGithubUsername(e.target.value.trim())}
-                  className="flex-1 p-2 border rounded-l text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                  className="flex-1 px-3 sm:px-4 py-2 rounded-l-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
                   placeholder="Enter GitHub username"
                 />
-                <div className="bg-gray-900 p-2 rounded-r">
-                  <Github className="w-5 h-5 text-white" />
+                <div className="bg-gray-900 p-2 rounded-r-lg">
+                  <Github className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">
+            <div className="space-y-1 sm:space-y-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">
                 LeetCode Username
               </label>
               <div className="flex">
@@ -1378,21 +1288,21 @@ const CodingProfiles: React.FC = () => {
                   type="text"
                   value={leetcodeUsername}
                   onChange={(e) => setLeetcodeUsername(e.target.value.trim())}
-                  className="flex-1 p-2 border rounded-l text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                  className="flex-1 px-3 sm:px-4 py-2 rounded-l-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
                   placeholder="Enter LeetCode username"
                 />
-                <div className="bg-orange-500 p-2 rounded-r">
-                  <Code2 className="w-5 h-5 text-white" />
+                <div className="bg-orange-500 p-2 rounded-r-lg">
+                  <Code2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <button
               type="button"
               onClick={() => setShowTokenInput(!showTokenInput)}
-              className="text-sm text-blue-500 hover:text-blue-600"
+              className="text-xs sm:text-sm text-blue-500 hover:text-blue-600"
             >
               {showTokenInput ? 'Hide Token Input' : 'Add GitHub Token'}
             </button>
@@ -1404,18 +1314,18 @@ const CodingProfiles: React.FC = () => {
           </div>
 
           {showTokenInput && (
-            <div>
-              <label className="block text-sm font-medium mb-1">
+            <div className="space-y-1 sm:space-y-2">
+              <label className="block text-xs sm:text-sm font-medium">
                 GitHub Personal Access Token
               </label>
               <input
                 type="password"
                 value={githubToken}
                 onChange={(e) => setGithubToken(e.target.value.trim())}
-                className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                className="w-full px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter your GitHub token"
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="text-xs text-gray-500">
                 Token is stored locally and used only for API requests
               </p>
             </div>
@@ -1424,7 +1334,7 @@ const CodingProfiles: React.FC = () => {
           <button
             type="submit"
             disabled={loading || (!githubUsername && !leetcodeUsername)}
-            className={`w-full py-2 rounded text-white font-medium transition-colors ${
+            className={`w-full py-2 sm:py-3 rounded-lg text-white text-xs sm:text-sm font-medium transition-colors ${
               loading || (!githubUsername && !leetcodeUsername)
                 ? 'bg-gray-400'
                 : 'bg-blue-500 hover:bg-blue-600'
@@ -1435,109 +1345,76 @@ const CodingProfiles: React.FC = () => {
         </form>
 
         {error && (
-          <div className="text-red-500 text-sm mb-4">
+          <div className="text-xs sm:text-sm text-red-500 mb-4 p-3 sm:p-4 rounded-lg bg-red-50 dark:bg-red-900/20">
             {error}
           </div>
         )}
 
-        {/* Display LeetCode Stats First */}
-        {leetcodeStats && (
-          <>
-          <LeetCodeDetailedStats stats={leetcodeStats} />
-            <FaangEligibility leetcodeStats={leetcodeStats} />
-          </>
-        )}
+        {/* Stats Section - Responsive Grid */}
+        {(leetcodeStats || githubStats) && (
+          <div className="space-y-4 sm:space-y-6">
+            {leetcodeStats && <LeetCodeDetailedStats stats={leetcodeStats} />}
+            {githubStats && <GitHubDetailedStats stats={githubStats} />}
 
-        {/* Display GitHub Stats */}
-        {githubStats && (
-          <>
-            <div className="space-y-6 mt-8">
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
-                <div className="flex items-center justify-between mb-6">
+            {/* Eligibility Trackers */}
+            <div className="space-y-3 sm:space-y-4">
+              {/* FAANG Eligibility Accordion */}
+              <div className="border dark:border-gray-700 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setShowFaangEligibility(!showFaangEligibility)}
+                  className={`w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between ${
+                    theme.mode === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'
+                  }`}
+                >
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                      <Github className="w-6 h-6 text-gray-700 dark:text-gray-300" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold">GitHub Profile</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Open Source Activity</p>
+                    <Rocket className="w-6 h-6 text-blue-500" />
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold">FAANG Eligibility Tracker</h3>
+                      <p className="text-sm text-gray-500">Check your readiness for top tech companies</p>
                     </div>
                   </div>
-                </div>
+                  <ChevronDown 
+                    className={`w-5 h-5 transition-transform ${showFaangEligibility ? 'rotate-180' : ''}`} 
+                  />
+                </button>
+                {showFaangEligibility && leetcodeStats && (
+                  <div className="p-3 sm:p-6 border-t dark:border-gray-700">
+                    <FaangEligibility leetcodeStats={leetcodeStats} />
+                  </div>
+                )}
+              </div>
 
-                {/* GitHub Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Total Contributions</p>
-                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                          {githubStats.totalContributions}
-                        </p>
-                        <div className="text-xs text-gray-500 mt-1">
-                          <span className="inline-flex items-center gap-1">
-                            <GitPullRequest className="w-3 h-3" />
-                            PRs: {githubStats.pullRequestContributions}
-                          </span>
-                          <span className="inline-flex items-center gap-1 ml-2">
-                            <GitFork className="w-3 h-3" />
-                            Issues: {githubStats.issueContributions}
-                          </span>
-                        </div>
-                      </div>
-                      <GitFork className="w-8 h-8 text-green-500 opacity-70" />
+              {/* rtCamp Eligibility Accordion */}
+              <div className="border dark:border-gray-700 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setShowRtCampEligibility(!showRtCampEligibility)}
+                  className={`w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between ${
+                    theme.mode === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Building2 className="w-6 h-6 text-green-500" />
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold">rtCamp Eligibility Tracker</h3>
+                      <p className="text-sm text-gray-500">Analyze your rtCamp application readiness</p>
                     </div>
                   </div>
-                  <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Stars</p>
-                        <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{githubStats.stars}</p>
-                      </div>
-                      <Star className="w-8 h-8 text-yellow-500 opacity-70" />
-                    </div>
+                  <ChevronDown 
+                    className={`w-5 h-5 transition-transform ${showRtCampEligibility ? 'rotate-180' : ''}`} 
+                  />
+                </button>
+                {showRtCampEligibility && githubStats && githubUsername && (
+                  <div className="p-3 sm:p-6 border-t dark:border-gray-700">
+                    <RtCampEligibility 
+                      githubUsername={githubUsername}
+                      githubStats={githubStats}
+                      githubToken={githubToken}
+                    />
                   </div>
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Pull Requests</p>
-                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{githubStats.pullRequests.opened}</p>
-                      </div>
-                      <GitPullRequest className="w-8 h-8 text-blue-500 opacity-70" />
-                    </div>
-                  </div>
-                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Followers</p>
-                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{githubStats.followers}</p>
-                      </div>
-                      <Users className="w-8 h-8 text-purple-500 opacity-70" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Compact Language Section */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Code2 className="w-4 h-4 text-gray-500" />
-                      <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Most Used Languages</h4>
-                    </div>
-                    <span className="text-xs text-gray-400">Top 6</span>
-                  </div>
-                  <LanguageStats languages={githubStats.topLanguages} />
-                </div>
+                )}
               </div>
             </div>
-
-            {/* Add RtCamp Eligibility */}
-            <RtCampEligibility 
-              githubUsername={githubUsername}
-              githubStats={githubStats}
-              githubToken={githubToken}
-            />
-          </>
+          </div>
         )}
       </div>
     </div>

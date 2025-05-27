@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { ChevronDown, ChevronRight, ExternalLink, Search, Shuffle, Check, BookmarkPlus, BookmarkCheck, Calendar, ChevronLeft } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Search, Shuffle, Check, BookmarkPlus, BookmarkCheck, Calendar, ChevronLeft, RefreshCw } from 'lucide-react';
 import ultimateData from '../../data/ultimateData';
 import Footer from '../Footer';
+import Fuse from 'fuse.js';
 
 interface Question {
   questionHeading: string;
@@ -43,6 +44,41 @@ interface StudyPlan {
   questionAssignments: { [date: string]: string[] };
   completedQuestionsByDate: { [date: string]: string[] };
 }
+
+const styles = `
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  .highlight-animation {
+    animation: highlight 2s ease-in-out;
+  }
+
+  @keyframes highlight {
+    0% { background-color: rgba(59, 130, 246, 0.5); }
+    100% { background-color: transparent; }
+  }
+
+  /* Mobile-friendly scrolling */
+  @media (max-width: 640px) {
+    .overflow-auto {
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  @keyframes spin-once {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  
+  .animate-spin-once:hover {
+    animation: spin-once 0.5s ease-in-out;
+  }
+`;
 
 const DSAQuestions: React.FC = () => {
   const { theme } = useTheme();
@@ -99,6 +135,38 @@ const DSAQuestions: React.FC = () => {
   const [numberOfDays, setNumberOfDays] = useState('');
   const [selectedDate, setSelectedDate] = useState(getTodayIST());
   const [showCalendar, setShowCalendar] = useState(false);
+  const content = (ultimateData?.data?.content || []) as Content[];
+  const [showBookmarked, setShowBookmarked] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [showIncomplete, setShowIncomplete] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Add debounce function after the state declarations
+  const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
+    let timeout: ReturnType<typeof setTimeout>;
+    return (...args: Parameters<F>): Promise<ReturnType<F>> =>
+      new Promise(resolve => {
+        if (timeout) clearTimeout(timeout);
+        timeout = setTimeout(() => resolve(func(...args)), waitFor);
+      });
+  };
+
+  // Add highlight function
+  const highlightText = (text: string, query: string): JSX.Element => {
+    if (!query.trim()) return <>{text}</>;
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return (
+      <>
+        {parts.map((part, i) => 
+          part.toLowerCase() === query.toLowerCase() ? (
+            <span key={i} className="bg-yellow-200 dark:bg-yellow-900 rounded px-0.5">{part}</span>
+          ) : part
+        )}
+      </>
+    );
+  };
 
   // Load saved data from localStorage on component mount
   useEffect(() => {
@@ -313,31 +381,71 @@ const DSAQuestions: React.FC = () => {
     };
   };
 
-  // Enhanced search functionality
+  // Update the getFilteredQuestions function
   const getFilteredQuestions = (questions: Question[]) => {
-    return questions.filter(question => {
-      const matchesSearch = searchQuery === '' || 
-        question.questionHeading.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        question.questionLink?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        question.gfgLink?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        question.leetCodeLink?.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesDifficulty = selectedDifficulty === 'all' || 
-        getDifficulty(question) === selectedDifficulty;
-      
-      const matchesTab = activeTab === 'all' || 
-        (activeTab === 'revision' && revisionQuestions.has(question.questionId));
-      
-      return matchesSearch && matchesDifficulty && matchesTab;
+    // First filter by difficulty and tab
+    const baseFiltered = questions.filter((question: Question) => {
+      const matchesDifficulty = selectedDifficulty === 'all' || getDifficulty(question) === selectedDifficulty;
+      const matchesTab = activeTab === 'all' || (activeTab === 'revision' && revisionQuestions.has(question.questionId));
+      return matchesDifficulty && matchesTab;
     });
+
+    // If no search query, return base filtered results
+    if (!searchQuery.trim()) return baseFiltered;
+
+    // Configure Fuse.js for fuzzy search
+    const fuseOptions = {
+      includeScore: true,
+      threshold: 0.4,
+      keys: [
+        { name: 'questionHeading', weight: 0.7 },
+        { name: 'questionLink', weight: 0.3 },
+        { name: 'gfgLink', weight: 0.3 },
+        { name: 'leetCodeLink', weight: 0.3 }
+      ]
+    };
+
+    const fuse = new Fuse(baseFiltered, fuseOptions);
+    return fuse.search(searchQuery).map(result => result.item);
   };
+
+  // Add debounced search handler
+  const debouncedSearch = debounce(async (query: string) => {
+    if (!query.trim()) {
+      setSearchSuggestions([]);
+      return;
+    }
+
+    // Get all unique question headings and topics
+    const suggestions = new Set<string>();
+    content.forEach(section => {
+      section.categoryList.forEach(category => {
+        suggestions.add(category.categoryName);
+        category.questionList.forEach(question => {
+          suggestions.add(question.questionHeading);
+        });
+      });
+    });
+
+    // Filter suggestions based on query
+    const fuse = new Fuse(Array.from(suggestions), {
+      threshold: 0.4,
+      includeScore: true
+    });
+
+    const results = fuse.search(query)
+      .slice(0, 5)
+      .map(result => result.item);
+
+    setSearchSuggestions(results);
+  }, 300);
 
   // Enhanced random question picker
   const pickRandomQuestion = () => {
     const allQuestions: Question[] = [];
-    content.forEach(section => {
-      section.categoryList.forEach(category => {
-        category.questionList.forEach(question => {
+    content.forEach((section: Content) => {
+      section.categoryList.forEach((category: Category) => {
+        category.questionList.forEach((question: Question) => {
           if (
             (selectedDifficulty === 'all' || getDifficulty(question) === selectedDifficulty) &&
             (activeTab === 'all' || (activeTab === 'revision' && revisionQuestions.has(question.questionId)))
@@ -350,15 +458,15 @@ const DSAQuestions: React.FC = () => {
 
     if (allQuestions.length > 0) {
       // Filter out completed questions unless all questions are completed
-      const incompleteQuestions = allQuestions.filter(q => !completedQuestions.has(q.questionId));
+      const incompleteQuestions = allQuestions.filter((q: Question) => !completedQuestions.has(q.questionId));
       const questionsToPickFrom = incompleteQuestions.length > 0 ? incompleteQuestions : allQuestions;
       
       const randomQuestion = questionsToPickFrom[Math.floor(Math.random() * questionsToPickFrom.length)];
       
       // Find and expand the topic containing this question
-      content.forEach(section => {
-        section.categoryList.forEach(category => {
-          if (category.questionList.some(q => q.questionId === randomQuestion.questionId)) {
+      content.forEach((section: Content) => {
+        section.categoryList.forEach((category: Category) => {
+          if (category.questionList.some((q: Question) => q.questionId === randomQuestion.questionId)) {
             setExpandedTopics(prev => ({ ...prev, [category.categoryName]: true }));
           }
         });
@@ -479,9 +587,9 @@ const DSAQuestions: React.FC = () => {
   // Get all questions in order
   const getAllQuestions = (): Question[] => {
     const allQuestions: Question[] = [];
-    content.forEach(section => {
-      section.categoryList.forEach(category => {
-        category.questionList.forEach(question => {
+    content.forEach((section: Content) => {
+      section.categoryList.forEach((category: Category) => {
+        category.questionList.forEach((question: Question) => {
           allQuestions.push(question);
         });
       });
@@ -498,8 +606,8 @@ const DSAQuestions: React.FC = () => {
 
     // Find all questions in this section
     const sectionQuestionIds = new Set<string>();
-    section.categoryList.forEach(category => {
-      category.questionList.forEach(question => {
+    section.categoryList.forEach((category: Category) => {
+      category.questionList.forEach((question: Question) => {
         sectionQuestionIds.add(question.questionId);
       });
     });
@@ -527,8 +635,8 @@ const DSAQuestions: React.FC = () => {
     let total = 0;
     let completed = 0;
 
-    section.categoryList.forEach(category => {
-      category.questionList.forEach(question => {
+    section.categoryList.forEach((category: Category) => {
+      category.questionList.forEach((question: Question) => {
         total++;
         if (completedQuestions.has(question.questionId)) {
           completed++;
@@ -545,24 +653,27 @@ const DSAQuestions: React.FC = () => {
     if (!startDate || !numDays || numDays <= 0) return;
 
     const allQuestions = getAllQuestions();
-    const totalQuestions = allQuestions.length;
+    // Filter out completed questions
+    const remainingQuestions = allQuestions.filter(q => !completedQuestions.has(q.questionId));
+    const totalQuestions = remainingQuestions.length;
     const questionsPerDay = Math.ceil(totalQuestions / numDays);
     
     const assignments: { [date: string]: string[] } = {};
-    let currentQuestionIndex = 0;
     
-    // Group questions by section
+    // Group questions by section, excluding completed ones
     const sectionQuestions: { [sectionPath: string]: Question[] } = {};
     content.forEach(section => {
       sectionQuestions[section.contentPath] = [];
       section.categoryList.forEach(category => {
         category.questionList.forEach(question => {
+          if (!completedQuestions.has(question.questionId)) {
           sectionQuestions[section.contentPath].push(question);
+          }
         });
       });
     });
 
-    // Calculate days per section based on question count
+    // Calculate days per section based on remaining question count
     const totalDaysPerSection: { [sectionPath: string]: number } = {};
     Object.entries(sectionQuestions).forEach(([sectionPath, questions]) => {
       const sectionDays = Math.ceil((questions.length / totalQuestions) * numDays);
@@ -629,148 +740,10 @@ const DSAQuestions: React.FC = () => {
     return studyPlan.completedQuestionsByDate[date] || [];
   };
 
-  // Calendar component
-  const renderCalendar = () => {
-    if (!studyPlan) return null;
-
-    const startDateObj = new Date(studyPlan.startDate);
-    const dates: string[] = [];
-    
-    for (let i = 0; i < studyPlan.numberOfDays; i++) {
-      const currentDate = new Date(startDateObj);
-      currentDate.setDate(currentDate.getDate() + i);
-      dates.push(currentDate.toISOString().split('T')[0]);
-    }
-
-    return (
-      <div className={`fixed right-4 top-24 w-64 rounded-lg shadow-lg ${
-        theme.mode === 'dark' ? 'bg-gray-800' : 'bg-white'
-      } p-4`}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-semibold">Study Calendar</h3>
-          <button onClick={() => setShowCalendar(false)} className="text-gray-500 hover:text-gray-700">
-            <ChevronRight size={20} />
-          </button>
-        </div>
-        <div className="space-y-2">
-          {dates.map(date => {
-            const questions = getQuestionsForDate(date);
-            const completedQuestions = getCompletedQuestionsForDate(date);
-            const isToday = date === new Date().toISOString().split('T')[0];
-            const isSelected = date === selectedDate;
-
-            return (
-              <button
-                key={date}
-                onClick={() => setSelectedDate(date)}
-                className={`w-full text-left p-2 rounded ${
-                  isSelected
-                    ? 'bg-blue-500 text-white'
-                    : isToday
-                    ? 'bg-blue-100 dark:bg-blue-900'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                <div className="flex justify-between items-center">
-                  <span>{new Date(date).toLocaleDateString()}</span>
-                  <span className="text-sm">
-                    {completedQuestions.length}/{questions.length}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  // Render study plan modal
-  const renderStudyPlanModal = () => {
-    if (!showStudyPlanModal) return null;
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className={`${theme.mode === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 max-w-md w-full mx-4`}>
-          <h2 className="text-xl font-bold mb-4">Create Study Plan</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Start Date</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className={`w-full px-3 py-2 rounded border ${
-                  theme.mode === 'dark' 
-                    ? 'bg-gray-700 border-gray-600' 
-                    : 'bg-white border-gray-300'
-                }`}
-              />
-              <p className="text-sm text-gray-500 mt-1">You can choose any date, including past dates</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Number of Days</label>
-              <input
-                type="number"
-                value={numberOfDays}
-                onChange={(e) => setNumberOfDays(e.target.value)}
-                min="1"
-                className={`w-full px-3 py-2 rounded border ${
-                  theme.mode === 'dark' 
-                    ? 'bg-gray-700 border-gray-600' 
-                    : 'bg-white border-gray-300'
-                }`}
-              />
-            </div>
-            <div className="text-sm text-gray-500">
-              {numberOfDays && parseInt(numberOfDays) > 0 && (
-                <p>
-                  {Math.ceil(getAllQuestions().length / parseInt(numberOfDays))} questions per day
-                </p>
-              )}
-            </div>
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={() => setShowStudyPlanModal(false)}
-                className={`px-4 py-2 rounded ${
-                  theme.mode === 'dark' 
-                    ? 'bg-gray-700 hover:bg-gray-600' 
-                    : 'bg-gray-100 hover:bg-gray-200'
-                }`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={createStudyPlan}
-                className="px-4 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white"
-                disabled={!startDate || !numberOfDays || parseInt(numberOfDays) <= 0}
-              >
-                Create Plan
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // Get the content array from ultimateData
-  const content: Content[] = ultimateData?.data?.content || [];
   const stats = calculateStats();
   const progressPercentage = Math.round((stats.completed / stats.total) * 100);
   const selectedDateQuestions = getQuestionsForDate(selectedDate);
-
-  // Add this CSS class to your global styles or component
-  const styles = `
-    .highlight-animation {
-      animation: highlight 2s ease-in-out;
-    }
-
-    @keyframes highlight {
-      0% { background-color: rgba(59, 130, 246, 0.5); }
-      100% { background-color: transparent; }
-    }
-  `;
 
   // Add difficulty filter options
   const difficultyOptions = ['all', 'Easy', 'Medium', 'Hard'] as const;
@@ -847,36 +820,48 @@ const DSAQuestions: React.FC = () => {
     return null;
   };
 
-  // Add this new reset function
+  // Update the handleReset function to be more comprehensive
   const handleReset = () => {
-    if (window.confirm('Are you sure you want to reset everything? This will clear your study plan, revision list, and all completed questions. This action cannot be undone.')) {
+    if (window.confirm('Are you sure you want to reset all progress? This action cannot be undone.')) {
       // Reset study plan
       setStudyPlan(null);
-      localStorage.removeItem('studyPlan');
 
       // Reset completed questions
       setCompletedQuestions(new Set());
-      localStorage.removeItem('completedQuestions');
 
-      // Reset revision list
+      // Reset revision questions
       setRevisionQuestions(new Set());
-      localStorage.removeItem('revisionQuestions');
+      
+      // Reset search and filters
+      setSearchQuery('');
+      setSelectedDifficulty('all');
+      
+      // Reset expanded topics
+      setExpandedTopics({});
 
       // Reset selected date to today
       setSelectedDate(getTodayIST());
+      
+      // Clear local storage
+      localStorage.removeItem('studyPlan');
+      localStorage.removeItem('completedQuestions');
+      localStorage.removeItem('revisionQuestions');
+      
+      // Update stats
+      calculateStats();
     }
   };
 
   return (
     <>
       <style>{styles}</style>
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Progress Tracker */}
-        <div className={`mb-8 p-6 rounded-lg ${theme.mode === 'dark' ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className={`mb-4 sm:mb-8 p-4 sm:p-6 rounded-lg ${theme.mode === 'dark' ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             {/* Total Progress */}
             <div className="flex items-center space-x-4">
-              <div className="relative w-20 h-20">
+              <div className="relative w-16 sm:w-20 h-16 sm:h-20">
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                   <circle
                     cx="18"
@@ -898,12 +883,12 @@ const DSAQuestions: React.FC = () => {
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-lg font-semibold">{progressPercentage}%</span>
+                  <span className="text-base sm:text-lg font-semibold">{progressPercentage}%</span>
                 </div>
               </div>
               <div>
-                <h2 className="text-xl font-bold">Total Progress</h2>
-                <p className="text-2xl font-bold">{stats.completed} / {stats.total}</p>
+                <h2 className="text-lg sm:text-xl font-bold">Total Progress</h2>
+                <p className="text-xl sm:text-2xl font-bold">{stats.completed} / {stats.total}</p>
               </div>
             </div>
 
@@ -911,10 +896,10 @@ const DSAQuestions: React.FC = () => {
             {['Easy', 'Medium', 'Hard'].map(difficulty => (
               <div key={difficulty} className="flex items-center space-x-4">
                 <div className={`text-${difficulty === 'Easy' ? 'green' : difficulty === 'Medium' ? 'yellow' : 'red'}-500`}>
-                  <h3 className="text-xl font-bold">{difficulty}</h3>
-                  <p className="text-2xl font-bold">
+                  <h3 className="text-lg sm:text-xl font-bold">{difficulty}</h3>
+                  <p className="text-xl sm:text-2xl font-bold">
                     {stats.difficultyStats[difficulty].completed} / {stats.difficultyStats[difficulty].total}
-                    <span className="text-gray-500 text-lg ml-2">completed</span>
+                    <span className="text-gray-500 text-base sm:text-lg ml-2">completed</span>
                   </p>
                 </div>
               </div>
@@ -922,11 +907,14 @@ const DSAQuestions: React.FC = () => {
           </div>
         </div>
 
-        {/* Controls with updated difficulty dropdown and reset button */}
-        <div className="flex flex-wrap gap-4 mb-8">
+        {/* Controls Section - Improved Layout */}
+        <div className="flex flex-col gap-4 mb-4 sm:mb-8">
+          {/* Top Row - Main Filters */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+            <div className="flex flex-col sm:flex-row w-full sm:w-auto items-start sm:items-center gap-2 sm:gap-4">
           <button 
             onClick={() => setActiveTab('all')}
-            className={`px-4 py-2 rounded-full ${
+                className={`w-full sm:w-auto px-4 py-2 rounded-lg ${
               activeTab === 'all'
                 ? theme.mode === 'dark'
                   ? 'bg-gray-800 text-white'
@@ -934,13 +922,13 @@ const DSAQuestions: React.FC = () => {
                 : theme.mode === 'dark'
                   ? 'bg-gray-700 text-gray-300'
                   : 'bg-gray-100 text-gray-600'
-            } font-medium`}
+                } font-medium text-sm sm:text-base min-w-[120px] text-center`}
           >
             All Problems
           </button>
           <button 
             onClick={() => setActiveTab('revision')}
-            className={`px-4 py-2 rounded-full ${
+                className={`w-full sm:w-auto px-4 py-2 rounded-lg ${
               activeTab === 'revision'
                 ? theme.mode === 'dark'
                   ? 'bg-gray-800 text-white'
@@ -948,112 +936,108 @@ const DSAQuestions: React.FC = () => {
                 : theme.mode === 'dark'
                   ? 'bg-gray-700 text-gray-300'
                   : 'bg-gray-100 text-gray-600'
-            }`}
+                } text-sm sm:text-base min-w-[120px] text-center`}
           >
             Revision ({revisionQuestions.size})
           </button>
-          <div className="flex-grow"></div>
-          <div className="flex gap-4">
-            {/* Enhanced Search Input */}
-            <div className="relative">
-              {showSearchInput ? (
-                <div className="flex items-center gap-2">
+            </div>
+
+            {/* Search Bar - Full width on mobile */}
+            <div className="w-full sm:w-auto sm:flex-grow">
+              <div className="relative w-full sm:max-w-md">
                   <input
                     type="text"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    const query = e.target.value;
+                    setSearchQuery(query);
+                    debouncedSearch(query);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                     placeholder="Search questions or topics..."
-                    className={`px-4 py-2 rounded-lg w-64 ${
+                  className={`w-full px-4 py-2 rounded-lg text-sm sm:text-base ${
                       theme.mode === 'dark'
                         ? 'bg-gray-800 text-white placeholder-gray-400'
                         : 'bg-white text-gray-900 placeholder-gray-500'
                     } border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                    autoFocus
-                  />
+                />
+                <Search size={18} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                
+                {/* Search Suggestions */}
+                {showSuggestions && searchSuggestions.length > 0 && (
+                  <div className={`absolute z-50 w-full mt-1 py-2 rounded-lg shadow-lg ${
+                    theme.mode === 'dark' ? 'bg-gray-800' : 'bg-white'
+                  } border border-gray-200 dark:border-gray-700`}>
+                    {searchSuggestions.map((suggestion, index) => (
                   <button
+                        key={index}
                     onClick={() => {
-                      setShowSearchInput(false);
-                      setSearchQuery('');
-                    }}
-                    className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
-                  >
-                    <ChevronRight size={20} />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowSearchInput(true)}
-                  className={`p-2 rounded-lg ${
-                    theme.mode === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-                  }`}
-                >
-                  <Search size={20} />
+                          setSearchQuery(suggestion);
+                          setShowSuggestions(false);
+                        }}
+                        className={`w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                          theme.mode === 'dark' ? 'text-gray-200' : 'text-gray-800'
+                        }`}
+                      >
+                        {highlightText(suggestion, searchQuery)}
                 </button>
+                    ))}
+                  </div>
               )}
             </div>
-            {renderDifficultyDropdown()}
+            </div>
+          </div>
+
+          {/* Action Buttons - Stack on mobile */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+            <div className="w-full sm:w-auto flex flex-wrap items-center gap-2 sm:gap-4">
             <button
               onClick={pickRandomQuestion}
-              className={`px-4 py-2 rounded-lg ${
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg ${
                 theme.mode === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-              } flex items-center gap-2`}
+                } flex items-center justify-center gap-2 text-sm sm:text-base hover:bg-opacity-90 transition-colors`}
             >
-              <Shuffle size={16} /> Pick Random
+                <Shuffle size={16} /> Random
             </button>
             <button
               onClick={() => setShowStudyPlanModal(true)}
-              className={`px-4 py-2 rounded-lg ${
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg ${
                 theme.mode === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-              } flex items-center gap-2`}
+                } flex items-center justify-center gap-2 text-sm sm:text-base hover:bg-opacity-90 transition-colors`}
             >
               <Calendar size={16} /> Study Plan
             </button>
             <button
               onClick={() => setShowCalendar(!showCalendar)}
-              className={`px-4 py-2 rounded-lg ${
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg ${
                 theme.mode === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-              } flex items-center gap-2`}
+                } flex items-center justify-center gap-2 text-sm sm:text-base hover:bg-opacity-90 transition-colors`}
             >
               <Calendar size={16} /> Calendar
             </button>
             <button
               onClick={handleReset}
-              className={`px-4 py-2 rounded-lg ${
-                theme.mode === 'dark' 
-                  ? 'bg-red-900/30 text-red-400 hover:bg-red-900/50' 
-                  : 'bg-red-50 text-red-600 hover:bg-red-100'
-              } flex items-center gap-2 transition-colors`}
-              title="Reset all progress, study plan, and revision list"
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg bg-red-500 text-white flex items-center justify-center gap-2 text-sm sm:text-base hover:bg-red-600 transition-colors`}
+              title="Reset all progress"
             >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="16" 
-                height="16" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                <path d="M21 3v5h-5" />
-              </svg>
-              Reset All
+              <RefreshCw size={16} className="animate-spin-once" /> Reset All
             </button>
+            </div>
           </div>
         </div>
 
         {/* Study Plan Summary */}
         {studyPlan && (
-          <div className={`mb-8 rounded-xl overflow-hidden ${
+          <div className={`mb-4 sm:mb-8 rounded-xl overflow-hidden ${
             theme.mode === 'dark' ? 'bg-gray-800' : 'bg-white'
           } shadow-lg border ${theme.mode === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
-            {/* Header Section */}
-            <div className={`p-6 border-b ${theme.mode === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div className={`p-4 sm:p-6 border-b ${theme.mode === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+                    <h3 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
                     Study Plan Overview
                   </h3>
                   <p className={`mt-1 text-sm ${
@@ -1063,7 +1047,7 @@ const DSAQuestions: React.FC = () => {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`px-4 py-2 rounded-full text-sm font-medium ${
+                    <span className={`px-3 sm:px-4 py-1 sm:py-2 rounded-full text-sm font-medium ${
                     getRemainingDays() > 5
                       ? theme.mode === 'dark' ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-50 text-blue-600'
                       : getRemainingDays() > 0
@@ -1092,14 +1076,14 @@ const DSAQuestions: React.FC = () => {
               </div>
 
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Start Date Card */}
                 <div className={`p-4 rounded-lg ${
                   theme.mode === 'dark' ? 'bg-gray-700/50' : 'bg-gray-50'
                 } relative overflow-hidden group hover:shadow-md transition-shadow`}>
                   <div className="relative z-10">
                     <p className="text-sm text-gray-500 mb-1">Start Date</p>
-                    <p className="text-lg font-medium">
+                      <p className="text-base sm:text-lg font-medium">
                       {formatDate(studyPlan.startDate)}
                     </p>
                   </div>
@@ -1112,7 +1096,7 @@ const DSAQuestions: React.FC = () => {
                 } relative overflow-hidden group hover:shadow-md transition-shadow`}>
                   <div className="relative z-10">
                     <p className="text-sm text-gray-500 mb-1">End Date</p>
-                    <p className="text-lg font-medium">
+                      <p className="text-base sm:text-lg font-medium">
                       {getEndDate() ? formatDate(getEndDate()!) : '-'}
                     </p>
                   </div>
@@ -1178,7 +1162,7 @@ const DSAQuestions: React.FC = () => {
                     <p className="text-sm text-gray-500 mb-1">Today's Progress</p>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-baseline gap-2">
-                        <p className="text-2xl font-bold text-green-500">
+                          <p className="text-xl sm:text-2xl font-bold text-green-500">
                           {getQuestionsForDate(getTodayIST()).filter(id => completedQuestions.has(id)).length}
                         </p>
                         <p className="text-sm text-gray-500">completed</p>
@@ -1216,50 +1200,52 @@ const DSAQuestions: React.FC = () => {
                     </div>
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"/>
+                  </div>
+                </div>
                 </div>
               </div>
 
-              {/* Today's Questions Section */}
-              <div className="mt-8">
+            {/* Scheduled Questions Section */}
+            <div className="p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-xl font-semibold flex items-center gap-2">
-                    <Calendar size={20} className="text-blue-500" />
-                    <span>Today's Questions ({formatDate(getTodayIST())})</span>
-                  </h4>
+                <h3 className="text-lg font-semibold">
+                  Scheduled Questions for {formatDate(selectedDate)}
+                </h3>
                   <div className="flex items-center gap-2">
-                    <div className={`px-4 py-2 rounded-lg ${
-                      theme.mode === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
-                    }`}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold text-green-500">
-                          {getQuestionsForDate(getTodayIST()).filter(id => completedQuestions.has(id)).length}
-                        </span>
-                        <span className="text-gray-500">/</span>
-                        <span className="text-lg font-medium">{getQuestionsForDate(getTodayIST()).length}</span>
-                        <span className="text-sm text-gray-500 ml-2">completed</span>
-                      </div>
-                      <div className="mt-2 h-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-green-500 rounded-full transition-all duration-300" 
-                          style={{ 
-                            width: `${(getQuestionsForDate(getTodayIST()).filter(id => completedQuestions.has(id)).length / 
-                              getQuestionsForDate(getTodayIST()).length) * 100}%` 
-                          }}
-                        />
-                      </div>
-                    </div>
+                  <button
+                    onClick={() => {
+                      const date = new Date(selectedDate);
+                      date.setDate(date.getDate() - 1);
+                      setSelectedDate(date.toISOString().split('T')[0]);
+                    }}
+                    className={`p-2 rounded-lg ${
+                      theme.mode === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const date = new Date(selectedDate);
+                      date.setDate(date.getDate() + 1);
+                      setSelectedDate(date.toISOString().split('T')[0]);
+                    }}
+                    className={`p-2 rounded-lg ${
+                      theme.mode === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    <ChevronRight size={20} />
+                  </button>
                   </div>
                 </div>
 
-                {/* Questions List */}
-                <div className="space-y-4">
-                  {getQuestionsForDate(getTodayIST()).length > 0 ? (
-                    getQuestionsForDate(getTodayIST()).map(questionId => {
+              <div className="space-y-3">
+                {selectedDateQuestions.length > 0 ? (
+                  selectedDateQuestions.map(questionId => {
                       const question = getAllQuestions().find(q => q.questionId === questionId);
                       if (!question) return null;
 
                       const isCompleted = completedQuestions.has(questionId);
-                      const isInRevision = revisionQuestions.has(questionId);
                       const difficulty = getDifficulty(question);
 
                       return (
@@ -1270,11 +1256,9 @@ const DSAQuestions: React.FC = () => {
                               ? isCompleted ? 'bg-gray-700/50' : 'bg-gray-700/30' 
                               : isCompleted ? 'bg-gray-50' : 'bg-white'
                           } border ${
-                            isCompleted 
-                              ? 'border-green-500/30' 
-                              : theme.mode === 'dark' 
-                                ? 'border-gray-700' 
-                                : 'border-gray-200'
+                          theme.mode === 'dark' 
+                            ? isCompleted ? 'border-green-500/30' : 'border-gray-700' 
+                            : isCompleted ? 'border-green-100' : 'border-gray-200'
                           }`}
                         >
                           <div className="flex items-start gap-4">
@@ -1291,12 +1275,12 @@ const DSAQuestions: React.FC = () => {
                               {isCompleted && <Check size={16} className="text-white" />}
                             </button>
                             <div className="flex-grow">
-                              <div className="flex items-start justify-between">
+                            <div className="flex items-start justify-between gap-4">
                                 <div>
-                                  <h4 className={`font-medium ${isCompleted ? 'line-through text-gray-500' : ''}`}>
-                                    {question.questionHeading}
-                                  </h4>
-                                  <div className="flex items-center gap-2 mt-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`font-medium ${isCompleted ? 'line-through text-gray-500' : ''}`}>
+                                    {highlightText(question.questionHeading, searchQuery)}
+                                  </span>
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                                       difficulty === 'Easy' 
                                         ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
@@ -1306,21 +1290,21 @@ const DSAQuestions: React.FC = () => {
                                     }`}>
                                       {difficulty}
                                     </span>
+                                </div>
                                     {renderQuestionLinks(question)}
-                                  </div>
                                 </div>
                                 <button
                                   onClick={() => toggleRevision(questionId)}
                                   className={`p-2 rounded-lg transition-colors ${
-                                    isInRevision 
+                                  revisionQuestions.has(questionId)
                                       ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                                       : theme.mode === 'dark'
                                       ? 'hover:bg-gray-600'
                                       : 'hover:bg-gray-100'
                                   }`}
-                                  title={isInRevision ? "Remove from revision" : "Add to revision"}
+                                title={revisionQuestions.has(questionId) ? "Remove from revision" : "Add to revision"}
                                 >
-                                  {isInRevision ? (
+                                {revisionQuestions.has(questionId) ? (
                                     <BookmarkCheck size={20} />
                                   ) : (
                                     <BookmarkPlus size={20} className="text-gray-400" />
@@ -1333,26 +1317,19 @@ const DSAQuestions: React.FC = () => {
                       );
                     })
                   ) : (
-                    <div className={`p-6 rounded-lg text-center ${
+                  <div className={`p-6 text-center rounded-lg ${
                       theme.mode === 'dark' ? 'bg-gray-700/30' : 'bg-gray-50'
                     }`}>
-                      <p className="text-gray-500">No questions scheduled for today</p>
-                      <button
-                        onClick={() => setShowStudyPlanModal(true)}
-                        className="mt-4 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors"
-                      >
-                        Create Study Plan
-                      </button>
+                    <p className="text-gray-500">No questions scheduled for this date</p>
                     </div>
                   )}
-                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Questions List with Section Date Ranges */}
-        <div className="space-y-8">
+        {/* Questions List - Improve mobile layout */}
+        <div className="space-y-4 sm:space-y-8">
           {content.map((section) => {
             const filteredCategories = section.categoryList.map(topic => ({
               ...topic,
@@ -1369,8 +1346,8 @@ const DSAQuestions: React.FC = () => {
               <div key={section.contentPath} className={`rounded-xl overflow-hidden border ${
                 theme.mode === 'dark' ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-white'
               } shadow-lg`}>
-                <div className={`p-6 border-b ${
-                  theme.mode === 'dark' ? 'border-gray-700' : 'border-gray-200'
+                <div className={`p-4 sm:p-6 border-b ${
+                  theme.mode === 'dark' ? 'border-gray-700' : 'border-gray-100'
                 }`}>
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
@@ -1410,8 +1387,8 @@ const DSAQuestions: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="p-6">
-                  <div className="grid gap-6">
+                <div className="p-4 sm:p-6">
+                  <div className="grid gap-4 sm:gap-6">
                     {filteredCategories.map((topic) => (
                       <div
                         key={topic.categoryId}
@@ -1448,7 +1425,7 @@ const DSAQuestions: React.FC = () => {
                         </button>
 
                         {expandedTopics[topic.categoryName] && (
-                          <div className="px-6 pb-6">
+                          <div className="px-4 sm:px-6 pb-6">
                             <div className="grid gap-4">
                               {topic.questionList.map((question) => {
                                 const isCompleted = completedQuestions.has(question.questionId);
@@ -1493,9 +1470,9 @@ const DSAQuestions: React.FC = () => {
                                                 <span className={`font-medium text-lg ${
                                                   isCompleted ? 'line-through text-gray-500' : ''
                                                 }`}>
-                                                  {question.questionHeading}
+                                                  {highlightText(question.questionHeading, searchQuery)}
                                                 </span>
-                                                <span className={`px-2 py-0.5 rounded-full text-sm font-medium ${
+                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                                                   difficulty === 'Easy' 
                                                     ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                                     : difficulty === 'Medium'
@@ -1554,11 +1531,194 @@ const DSAQuestions: React.FC = () => {
           })}
         </div>
 
-        {/* Study Plan Modal */}
-        {renderStudyPlanModal()}
+        {/* Study Plan Modal - Make it mobile friendly */}
+        {showStudyPlanModal && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-black/50 transition-opacity"
+              onClick={() => setShowStudyPlanModal(false)}
+            />
+            
+            {/* Modal Panel */}
+            <div className="relative min-h-screen sm:min-h-0 flex items-center justify-center p-4">
+              <div className={`relative w-full max-w-lg rounded-lg shadow-xl ${
+                theme.mode === 'dark' ? 'bg-gray-800' : 'bg-white'
+              } p-4 sm:p-6`}>
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold">Create Study Plan</h2>
+                    <button
+                      onClick={() => setShowStudyPlanModal(false)}
+                      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
 
-        {/* Calendar Sidebar */}
-        {showCalendar && renderCalendar()}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Start Date</label>
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className={`w-full px-4 py-2 rounded-lg text-sm ${
+                          theme.mode === 'dark'
+                            ? 'bg-gray-700 border-gray-600'
+                            : 'bg-white border-gray-300'
+                        } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">You can choose any date, including past dates</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Number of Days</label>
+                      <input
+                        type="number"
+                        value={numberOfDays}
+                        onChange={(e) => setNumberOfDays(e.target.value)}
+                        min="1"
+                        className={`w-full px-4 py-2 rounded-lg text-sm ${
+                          theme.mode === 'dark'
+                            ? 'bg-gray-700 border-gray-600'
+                            : 'bg-white border-gray-300'
+                        } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                      />
+                      {numberOfDays && parseInt(numberOfDays) > 0 && (
+                        <p className="mt-1 text-sm text-gray-500">
+                          {Math.ceil(getAllQuestions().length / parseInt(numberOfDays))} questions per day
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
+                    <button
+                      onClick={() => setShowStudyPlanModal(false)}
+                      className={`w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-medium ${
+                        theme.mode === 'dark'
+                          ? 'bg-gray-700 hover:bg-gray-600'
+                          : 'bg-gray-100 hover:bg-gray-200'
+                      }`}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={createStudyPlan}
+                      disabled={!startDate || !numberOfDays || parseInt(numberOfDays) <= 0}
+                      className={`w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-medium ${
+                        !startDate || !numberOfDays || parseInt(numberOfDays) <= 0
+                          ? 'bg-blue-400 cursor-not-allowed'
+                          : 'bg-blue-500 hover:bg-blue-600'
+                      } text-white`}
+                    >
+                      Create Plan
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Calendar Sidebar - Make it mobile friendly */}
+        {showCalendar && studyPlan && (
+          <div className="fixed inset-0 z-50 overflow-hidden">
+            {/* Backdrop */}
+            <div 
+              className="absolute inset-0 bg-black/50 transition-opacity"
+              onClick={() => setShowCalendar(false)}
+            />
+            
+            {/* Calendar Panel */}
+            <div className={`absolute inset-y-0 right-0 w-full sm:w-96 transform transition-transform duration-300 ease-in-out
+              ${theme.mode === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className="h-full flex flex-col">
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-semibold">Study Calendar</h3>
+                  <button 
+                    onClick={() => setShowCalendar(false)}
+                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+
+                {/* Calendar Content */}
+                <div className="flex-1 overflow-y-auto p-4">
+                  <div className="space-y-2">
+                    {(() => {
+                      const dates: string[] = [];
+                      const startDate = new Date(studyPlan.startDate);
+                      
+                      for (let i = 0; i < studyPlan.numberOfDays; i++) {
+                        const currentDate = new Date(startDate);
+                        currentDate.setDate(startDate.getDate() + i);
+                        dates.push(currentDate.toISOString().split('T')[0]);
+                      }
+
+                      return dates.map(date => {
+                        const questions = getQuestionsForDate(date);
+                        const completedQuestions = getCompletedQuestionsForDate(date);
+                        const isToday = date === getTodayIST();
+                        const isSelected = date === selectedDate;
+
+                        return (
+                          <button
+                            key={date}
+                            onClick={() => setSelectedDate(date)}
+                            className={`w-full text-left p-4 rounded-lg transition-colors ${
+                              isSelected
+                                ? 'bg-blue-500 text-white'
+                                : isToday
+                                ? theme.mode === 'dark' ? 'bg-blue-900/20' : 'bg-blue-50'
+                                : theme.mode === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div>
+                                <p className="font-medium">{new Date(date).toLocaleDateString(undefined, { 
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}</p>
+                                <p className={`text-sm ${
+                                  isSelected ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'
+                                }`}>
+                                  {completedQuestions.length}/{questions.length} completed
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {questions.map((questionId, index) => (
+                                  <div
+                                    key={questionId}
+                                    className={`w-2 h-2 rounded-full ${
+                                      completedQuestions.includes(questionId)
+                                        ? 'bg-green-500'
+                                        : isSelected
+                                        ? 'bg-white/30'
+                                        : theme.mode === 'dark'
+                                        ? 'bg-gray-600'
+                                        : 'bg-gray-300'
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       <Footer />
     </>
